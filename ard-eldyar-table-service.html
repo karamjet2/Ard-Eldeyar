@@ -164,6 +164,7 @@ const isStaff = params.get('staff') === '1';
 // ---------- Firebase Realtime Database config ----------
 // Paste your Firebase Realtime Database URL here, e.g. "https://your-project-default-rtdb.firebaseio.com"
 const FIREBASE_URL = "https://ard-eldyar-default-rtdb.firebaseio.com";
+const NTFY_TOPIC = "ardeldyar-su7avyi7or";
 
 const storage = {
   async list() {
@@ -232,6 +233,18 @@ async function renderCustomer(table) {
       await storage.set(key, {
         table, type, label, time: nowStr(), ts: Date.now()
       });
+      // Send push notification to staff phone (works even if screen is locked)
+      try {
+        await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+          method: 'POST',
+          headers: {
+            'Title': `طاولة ${table}`,
+            'Priority': 'urgent',
+            'Tags': 'bell'
+          },
+          body: label
+        });
+      } catch(e) {}
       status.textContent = `✅ تم إرسال طلبك! (${label}) - سيصل النادل قريباً`;
       status.style.color = 'var(--green)';
     } catch (e) {
