@@ -161,6 +161,29 @@ const params = new URLSearchParams(window.location.search);
 const tableParam = params.get('table');
 const isStaff = params.get('staff') === '1';
 
+// ---------- Firebase Realtime Database config ----------
+// Paste your Firebase Realtime Database URL here, e.g. "https://your-project-default-rtdb.firebaseio.com"
+const FIREBASE_URL = "https://ard-eldyar-default-rtdb.firebaseio.com";
+
+const storage = {
+  async list() {
+    const res = await fetch(`${FIREBASE_URL}/requests.json`);
+    const data = await res.json();
+    if (!data) return [];
+    return Object.entries(data).map(([key, val]) => ({ key, ...val }));
+  },
+  async set(key, value) {
+    await fetch(`${FIREBASE_URL}/requests/${key}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value)
+    });
+  },
+  async delete(key) {
+    await fetch(`${FIREBASE_URL}/requests/${key}.json`, { method: 'DELETE' });
+  }
+};
+
 // ---------- Helpers ----------
 function nowStr() {
   return new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' });
@@ -205,10 +228,10 @@ async function renderCustomer(table) {
     status.textContent = 'جارٍ الإرسال...';
     status.style.color = 'var(--gold)';
     try {
-      const key = `request:${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-      await window.storage.set(key, JSON.stringify({
-        table, type, label, time: nowStr(), ts: Date.now(), resolved: false
-      }), true);
+      const key = `${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+      await storage.set(key, {
+        table, type, label, time: nowStr(), ts: Date.now()
+      });
       status.textContent = `✅ تم إرسال طلبك! (${label}) - سيصل النادل قريباً`;
       status.style.color = 'var(--green)';
     } catch (e) {
@@ -241,18 +264,7 @@ async function renderStaff() {
 
   async function poll() {
     try {
-      const keysRes = await window.storage.list('request:', true);
-      const keys = keysRes ? keysRes.keys : [];
-      let items = [];
-      for (const k of keys) {
-        try {
-          const r = await window.storage.get(k, true);
-          if (r && r.value) {
-            const data = JSON.parse(r.value);
-            if (!data.resolved) items.push({ key: k, ...data });
-          }
-        } catch(e) {}
-      }
+      let items = await storage.list();
       items.sort((a,b) => a.ts - b.ts);
 
       // ring for new ones
@@ -281,7 +293,7 @@ async function renderStaff() {
           btn.onclick = async () => {
             const key = btn.getAttribute('data-key');
             try {
-              await window.storage.delete(key, true);
+              await storage.delete(key);
               known.delete(key);
               btn.closest('.req-item').remove();
               if (list.children.length === 0) {
@@ -367,7 +379,15 @@ function renderSetup() {
 }
 
 // ---------- ROUTER ----------
-if (tableParam) {
+if (FIREBASE_URL.includes('REPLACE_WITH')) {
+  root.innerHTML = `
+    <h1>Ard El Dyar</h1>
+    <div class="card" style="text-align:center; color:#d9534f;">
+      ⚠️ لازم تربط قاعدة البيانات (Firebase) أولاً.<br><br>
+      رجع لـ Claude وأرسل رابط الـ Database URL حتى أحدّث الملف.
+    </div>
+  `;
+} else if (tableParam) {
   renderCustomer(tableParam);
 } else if (isStaff) {
   renderStaff();
